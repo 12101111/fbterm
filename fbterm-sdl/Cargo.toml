@@ -1,0 +1,15 @@
+[package]
+name = "fbterm_sdl"
+version = "0.1.0"
+authors = ["韩朴宇 <w12101111@gmail.com>"]
+license = "MIT"
+edition = "2018"
+
+[[bin]]
+name = "fbterm_sdl"
+path= "main.rs"
+
+[dependencies]
+sdl2 = "0.32"
+fbterm = { path = ".."}
+clap = "2"
