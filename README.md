@@ -12,6 +12,8 @@ Build for no_std environment,such as operating system(without vga text mode) and
 
 SDL:
 
+Input characters and show them in SDL window.
+
 ```txt
 Fbterm test on SDL2
 
@@ -30,7 +32,7 @@ OPTIONS:
 
 ![sdl2](./doc/sdl2.jpg)
 
-[My OS](https://github.com/12101111/os) 
+[My OS](https://github.com/12101111/os)
 
 After exiting UEFI boot service, program can't use Simple Text Output Protocal, but can use existing UEFI framebuffer.My OS use this crate to print texts.
 
@@ -44,8 +46,7 @@ Code page: 437 ,also known as CP437, OEM-US, OEM 437, PC-8, or DOS Latin US
 
 ## Todo
 
-Custom font support
-
-Unicode map support
-
-Framebuffer resize, font resize
+    Custom font
+    Unicode map
+    Buffer line
+    Cursor

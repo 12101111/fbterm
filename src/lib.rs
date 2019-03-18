@@ -19,8 +19,8 @@ pub struct Fbterm<'a, T: Pixel> {
 }
 
 impl<'a, T: Pixel> Fbterm<'a, T> {
-    pub fn new(framebuffer: Framebuffer<'a, T>, font: Fonts) -> Fbterm<'a, T> {
-        let font = Font::new(font);
+    pub fn new(framebuffer: Framebuffer<'a, T>, font_size: Fonts) -> Fbterm<'a, T> {
+        let font = Font::new(font_size);
         let height = framebuffer.height() / font.height();
         let width = framebuffer.width() / font.width();
         Fbterm {
@@ -45,6 +45,20 @@ impl<'a, T: Pixel> Fbterm<'a, T> {
                 self.x = 0;
                 self.y += 1;
             }
+            0x08 => {
+                if self.x > 0 {
+                    self.x -= 1;
+                    self.framebuffer.draw_rect(
+                        Rect::new(
+                            self.x * self.font.width(),
+                            self.y * self.font.height(),
+                            self.font.width(),
+                            self.font.height(),
+                        ),
+                        self.framebuffer.get_background(),
+                    )
+                }
+            }
             _ => {
                 let bitmap = self.font.char(c);
                 self.draw_font(bitmap);
@@ -65,6 +79,17 @@ impl<'a, T: Pixel> Fbterm<'a, T> {
         for c in s.bytes() {
             self.putc(c)
         }
+    }
+
+    pub fn get_font_size(&self) -> Fonts {
+        self.font.get_font_size()
+    }
+
+    pub fn set_font_size(&mut self, font: Fonts) {
+        self.font = Font::new(font);
+        self.height = self.framebuffer.height() / self.font.height();
+        self.width = self.framebuffer.width() / self.font.width();
+        self.clear();
     }
 
     fn draw_font(&mut self, bitmap: &'a [u8]) {

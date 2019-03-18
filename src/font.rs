@@ -1,6 +1,7 @@
 pub struct Font<'a> {
     buffer: &'a [u8],
     height: usize,
+    size: Fonts,
 }
 
 impl<'a> Font<'a> {
@@ -9,14 +10,17 @@ impl<'a> Font<'a> {
             Fonts::VGA8x8 => Font {
                 buffer: &VGAFONT8,
                 height: 8,
+                size: font,
             },
             Fonts::VGA8x14 => Font {
                 buffer: &VGAFONT14,
                 height: 14,
+                size: font,
             },
             Fonts::VGA8x16 => Font {
                 buffer: &VGAFONT16,
                 height: 16,
+                size: font,
             },
         }
     }
@@ -30,8 +34,12 @@ impl<'a> Font<'a> {
     pub fn height(&self) -> usize {
         self.height
     }
+    pub fn get_font_size(&self) -> Fonts {
+        self.size
+    }
 }
 
+#[derive(Clone, Copy)]
 pub enum Fonts {
     VGA8x8,
     VGA8x14,

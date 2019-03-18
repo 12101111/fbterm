@@ -109,6 +109,10 @@ impl<'a, T: Pixel> Framebuffer<'a, T> {
     pub fn height(&self) -> usize {
         self.height
     }
+
+    pub fn get_base(&self)->*mut u8{
+        self.base
+    }
 }
 
 #[derive(Copy, Clone)]

@@ -84,8 +84,7 @@ fn main() {
         r"
 Test finish.
 Any characters you type will be displayed on the screen.
-Enter and backspace not supported currently.
-IME also not supported
+Turn of IME before input
 ",
     );
     texture.update(None, &frame_buffer, 4 * width).unwrap();
@@ -106,6 +105,27 @@ IME also not supported
                     canvas.clear();
                     canvas.copy(&texture, None, None).unwrap();
                     canvas.present();
+                }
+                Event::KeyDown {
+                    keycode: Some(key), ..
+                } => {
+                    match key {
+                        Keycode::Left => fbterm.set_font_size(Fonts::VGA8x8),
+                        Keycode::Down => fbterm.set_font_size(Fonts::VGA8x14),
+                        Keycode::Right => fbterm.set_font_size(Fonts::VGA8x16),
+                        Keycode::Backspace => fbterm.putc(0x08),
+                        Keycode::KpEnter | Keycode::Return => fbterm.putc(b'\n'),
+                        _ => {}
+                    }
+                    match key {
+                        Keycode::Left | Keycode::Down | Keycode::Right | Keycode::Backspace => {
+                            texture.update(None, &frame_buffer, 4 * width).unwrap();
+                            canvas.clear();
+                            canvas.copy(&texture, None, None).unwrap();
+                            canvas.present();
+                        }
+                        _ => {}
+                    }
                 }
                 _ => {}
             }
