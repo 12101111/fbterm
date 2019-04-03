@@ -46,7 +46,8 @@ Code page: 437 ,also known as CP437, OEM-US, OEM 437, PC-8, or DOS Latin US
 
 ## Todo
 
+    Cursor
+    board support
+    Buffer line
     Custom font
     Unicode map
-    Buffer line
-    Cursor

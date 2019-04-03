@@ -4,7 +4,7 @@ mod font;
 mod pixel;
 
 pub use fb::Framebuffer;
-use fb::Rect;
+pub use fb::Rect;
 use font::Font;
 pub use font::Fonts;
 pub use pixel::*;
