@@ -4,6 +4,7 @@ pub struct Framebuffer<'a, T: Pixel> {
     base: *mut u8,
     width: usize,
     height: usize,
+    stride: usize,
     background: T,
     foreground: T,
     _lifetime: PhantomData<&'a u8>,
@@ -14,6 +15,7 @@ impl<'a, T: Pixel> Framebuffer<'a, T> {
         base: *mut u8,
         width: usize,
         height: usize,
+        stride: usize,
         background: T,
         foreground: T,
     ) -> Framebuffer<'a, T> {
@@ -21,6 +23,7 @@ impl<'a, T: Pixel> Framebuffer<'a, T> {
             base,
             width,
             height,
+            stride,
             background,
             foreground,
             _lifetime: PhantomData,
@@ -28,7 +31,7 @@ impl<'a, T: Pixel> Framebuffer<'a, T> {
     }
 
     pub fn clear(&mut self) {
-        for i in 0..self.height * self.width {
+        for i in 0..self.height * self.stride {
             unsafe { self.background.write_volatile(self.base.add(i * T::size())) }
         }
     }
@@ -52,9 +55,9 @@ impl<'a, T: Pixel> Framebuffer<'a, T> {
             unsafe {
                 core::ptr::copy_nonoverlapping(
                     self.base
-                        .add(((src.y + y) * self.width + src.x) * T::size()),
+                        .add(((src.y + y) * self.stride + src.x) * T::size()),
                     self.base
-                        .add(((dst.y + y) * self.width + dst.x) * T::size()),
+                        .add(((dst.y + y) * self.stride + dst.x) * T::size()),
                     src.width * T::size(),
                 );
             }
@@ -68,7 +71,7 @@ impl<'a, T: Pixel> Framebuffer<'a, T> {
                 unsafe {
                     pixel.write_volatile(
                         self.base
-                            .add(((dst.y + y) * self.width + dst.x + x) * T::size()),
+                            .add(((dst.y + y) * self.stride + dst.x + x) * T::size()),
                     )
                 }
             }
@@ -78,13 +81,13 @@ impl<'a, T: Pixel> Framebuffer<'a, T> {
     pub fn draw_pixel(&mut self, x: usize, y: usize, pixel: T) {
         debug_assert!(x < self.width, "Frame buffer accessed out of bounds");
         debug_assert!(y < self.height, "Frame buffer accessed out of bounds");
-        unsafe { pixel.write_volatile(self.base.add((y * self.width + x) * T::size())) }
+        unsafe { pixel.write_volatile(self.base.add((y * self.stride + x) * T::size())) }
     }
 
     pub fn get_pixel(&self, x: usize, y: usize) -> T {
         debug_assert!(x < self.width, "Frame buffer accessed out of bounds");
         debug_assert!(y < self.height, "Frame buffer accessed out of bounds");
-        unsafe { T::read_volatile(self.base.add((y * self.height + x) * T::size())) }
+        unsafe { T::read_volatile(self.base.add((y * self.stride + x) * T::size())) }
     }
 
     pub fn get_foreground(&self) -> T {

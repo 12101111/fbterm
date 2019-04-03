@@ -67,6 +67,7 @@ fn main() {
             (&mut frame_buffer).as_mut_ptr(),
             width,
             height,
+            width,
             background,
             foreground,
         )

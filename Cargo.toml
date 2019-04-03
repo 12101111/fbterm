@@ -1,6 +1,6 @@
 [package]
 name = "fbterm"
-version = "0.1.0"
+version = "0.2.0"
 description = "A terminal emulator for any framebuffer."
 keywords = ["terminal", "framebuffer", "os"]
 license = "MIT"
