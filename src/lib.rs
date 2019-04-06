@@ -1,4 +1,4 @@
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 mod fb;
 mod font;
 mod pixel;
@@ -44,6 +44,10 @@ impl<'a, T: Pixel> Fbterm<'a, T> {
             b'\n' => {
                 self.x = 0;
                 self.y += 1;
+                if self.y >= self.height {
+                    self.scroll();
+                    self.y = self.height - 1;
+                }
             }
             0x08 => {
                 if self.x > 0 {
