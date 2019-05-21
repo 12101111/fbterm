@@ -63,6 +63,9 @@ impl<'a, T: Pixel> Fbterm<'a, T> {
                     )
                 }
             }
+            b'\t' => {
+                self.print("    ");
+            }
             _ => {
                 let bitmap = self.font.char(c);
                 self.draw_font(bitmap);
