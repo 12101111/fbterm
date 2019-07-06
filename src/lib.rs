@@ -42,12 +42,16 @@ impl<'a, T: Pixel> Fbterm<'a, T> {
     pub fn putc(&mut self, c: u8) {
         match c {
             b'\n' => {
+                // FIXME: should \n reset x ?
                 self.x = 0;
                 self.y += 1;
                 if self.y >= self.height {
                     self.scroll();
                     self.y = self.height - 1;
                 }
+            }
+            b'\r' => {
+                self.x = 0;
             }
             0x08 => {
                 if self.x > 0 {
