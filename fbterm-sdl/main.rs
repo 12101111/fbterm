@@ -128,7 +128,11 @@ Turn of IME before input
                         _ => {}
                     }
                 }
-                _ => {}
+                _ => {
+                    canvas.clear();
+                    canvas.copy(&texture, None, None).unwrap();
+                    canvas.present();
+                }
             }
         };
     }

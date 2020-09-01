@@ -10,6 +10,6 @@ name = "fbterm_sdl"
 path= "main.rs"
 
 [dependencies]
-sdl2 = "0.32"
+sdl2 = "0.34"
 fbterm = { path = ".."}
 clap = "2"

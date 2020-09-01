@@ -30,7 +30,7 @@ OPTIONS:
     -w, --width <width>      width of screen
 ```
 
-![sdl2](./doc/sdl2.jpg)
+![sdl2](./doc/sdl2.png)
 
 [My OS](https://github.com/12101111/os)
 
