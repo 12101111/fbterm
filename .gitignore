@@ -3,3 +3,9 @@
 Cargo.lock
 *.dll
 *.exe
+*.efi
+*.ttf
+*.otf
+*.psf
+*.hex
+*.bin

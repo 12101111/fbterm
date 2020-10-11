@@ -1,155 +1,170 @@
 #![cfg_attr(not(test), no_std)]
+
+#[cfg(feature = "alloc")]
+extern crate alloc;
+
 mod fb;
 mod font;
+mod num;
 mod pixel;
 
 pub use fb::Framebuffer;
 pub use fb::Rect;
-use font::Font;
-pub use font::Fonts;
+use font::Glyph;
+pub use font::{
+    vga::{VGAFont, VGAFontConfig},
+    Font, Point,
+};
+use num::Saturating;
+
+#[cfg(feature = "alloc")]
+pub use font::truetype::TrueTypeFont;
+
 pub use pixel::*;
 
-pub struct Fbterm<'a, T: Pixel> {
-    pub framebuffer: Framebuffer<'a, T>,
-    font: Font<'a>,
-    x: usize,
-    y: usize,
-    width: usize,
-    height: usize,
+pub struct Fbterm<'a, P: Pixel, F: Font> {
+    pub framebuffer: Framebuffer<'a, P>,
+    font: F,
+    x: Saturating,
+    y: Saturating,
 }
 
-impl<'a, T: Pixel> Fbterm<'a, T> {
-    pub fn new(framebuffer: Framebuffer<'a, T>, font_size: Fonts) -> Fbterm<'a, T> {
-        let font = Font::new(font_size);
-        let height = framebuffer.height() / font.height();
-        let width = framebuffer.width() / font.width();
+impl<'a, P: Pixel, F: Font> Fbterm<'a, P, F> {
+    pub fn new(framebuffer: Framebuffer<'a, P>, font: F) -> Fbterm<'a, P, F> {
+        let width = framebuffer.width();
+        let height = framebuffer.height();
         Fbterm {
             framebuffer,
             font,
-            x: 0,
-            y: 0,
-            height,
-            width,
+            x: Saturating::new(width - 1),
+            y: Saturating::new(height - 1),
         }
     }
 
     pub fn clear(&mut self) {
-        self.x = 0;
-        self.y = 0;
+        self.x.set(0);
+        self.y.set(0);
         self.framebuffer.clear();
     }
 
-    pub fn putc(&mut self, c: u8) {
+    pub fn putc(&mut self, c: char) {
         match c {
-            b'\n' => {
+            '\n' => {
                 // FIXME: should \n reset x ?
-                self.x = 0;
-                self.y += 1;
-                if self.y >= self.height {
+                self.x.set(0);
+                self.y += self.font.height();
+                if self.y.add_check(self.font.height()).1 {
                     self.scroll();
-                    self.y = self.height - 1;
                 }
             }
-            b'\r' => {
-                self.x = 0;
+            '\r' => {
+                self.x.set(0);
             }
-            0x08 => {
-                if self.x > 0 {
-                    self.x -= 1;
-                    self.framebuffer.draw_rect(
-                        Rect::new(
-                            self.x * self.font.width(),
-                            self.y * self.font.height(),
-                            self.font.width(),
-                            self.font.height(),
-                        ),
-                        self.framebuffer.get_background(),
-                    )
-                }
-            }
-            b'\t' => {
+            '\t' => {
                 self.print("    ");
             }
             _ => {
-                let bitmap = self.font.char(c);
-                self.draw_font(bitmap);
-                self.x += 1;
-                if self.x >= self.width {
-                    self.x = 0;
-                    self.y += 1;
+                let glyph = self
+                    .font
+                    .get_glyph(c)
+                    .unwrap_or(self.font.get_glyph(' ').unwrap());
+                let (mut next_x, overflow) = self.x.add_check(glyph.advance);
+                if overflow {
+                    self.x.set(0);
+                    next_x = glyph.advance;
+                    self.y += self.font.height();
                 }
-                if self.y >= self.height {
+                if self.y.add_check(self.font.height()).1 {
                     self.scroll();
-                    self.y = self.height - 1;
                 }
+                self.draw_glyph(glyph);
+                self.x.set(next_x);
             }
         }
     }
 
     pub fn print(&mut self, s: &str) {
-        for c in s.bytes() {
+        for c in s.chars() {
             self.putc(c)
         }
     }
 
-    pub fn get_font_size(&self) -> Fonts {
-        self.font.get_font_size()
+    pub fn get_font(&self) -> &F {
+        &self.font
     }
 
-    pub fn set_font_size(&mut self, font: Fonts) {
-        self.font = Font::new(font);
-        self.height = self.framebuffer.height() / self.font.height();
-        self.width = self.framebuffer.width() / self.font.width();
+    pub fn get_font_mut(&mut self) -> &mut F {
+        &mut self.font
+    }
+
+    pub fn change_font<T: Font>(mut self, font: T) -> Fbterm<'a, P, T> {
+        // TODO: redraw after reset
         self.clear();
+        Fbterm::new(self.framebuffer, font)
     }
 
-    fn draw_font(&mut self, bitmap: &'a [u8]) {
-        bitmap.into_iter().enumerate().for_each(|(y, &c)| {
-            for x in 0..self.font.width() {
-                let pixel = if ((c >> (self.font.width() - 1 - x)) & 0x1) == 0x1 {
-                    self.framebuffer.get_foreground()
-                } else {
-                    self.framebuffer.get_background()
+    #[inline]
+    pub fn width(&self) -> usize {
+        self.framebuffer.width()
+    }
+
+    #[inline]
+    pub fn height(&self) -> usize {
+        self.framebuffer.height()
+    }
+
+    fn draw_glyph(&mut self, glyph: Glyph) {
+        let basex = *self.x + glyph.x;
+        let basey = *self.y as isize + glyph.y;
+        assert!(glyph.y >= 0);
+        let basey = basey as usize;
+        assert!(
+            basex + glyph.width <= self.width(),
+            "x is overflow: {} + {}",
+            basex, glyph.width
+        );
+        assert!(
+            basey + glyph.height <= self.height(),
+            "y is overflow: {} + {}",
+            basey, glyph.height
+        );
+        for y in 0..glyph.height {
+            for x in 0..glyph.width {
+                match self.font.get_pixel(&glyph, x, y) {
+                    font::Point::Bit(bit) => unsafe {
+                        self.framebuffer.draw_bit(basex + x, basey + y, bit)
+                    },
+                    font::Point::Coverage(cov) => unsafe {
+                        self.framebuffer.draw_alpha(basex + x, basey + y, cov)
+                    },
                 };
-                self.framebuffer.draw_pixel(
-                    self.x * self.font.width() + x,
-                    self.y * self.font.height() + y,
-                    pixel,
-                );
             }
-        })
+        }
     }
 
+    /* FIXME: This is too slow */
     fn scroll(&mut self) {
-        for y in 0..(self.height - 1) {
-            self.framebuffer.copy_rect(
-                Rect::new(
-                    0,
-                    (y + 1) * self.font.height(),
-                    self.framebuffer.width(),
-                    self.font.height(),
-                ),
-                Rect::new(
-                    0,
-                    y * self.font.height(),
-                    self.framebuffer.width(),
-                    self.font.height(),
-                ),
-            );
-        }
+        let diff = *self.y + self.font.height() + 1 - self.height();
+        self.framebuffer.copy_rect(
+            Rect::new(0, diff, self.framebuffer.width(), self.height() - diff),
+            Rect::new(0, 0, self.framebuffer.width(), self.height() - diff),
+        );
         self.framebuffer.draw_rect(
-            Rect::new(
-                0,
-                (self.height - 1) * self.font.height(),
-                self.framebuffer.width(),
-                self.font.height(),
-            ),
+            Rect::new(0, self.height() - diff, self.framebuffer.width(), diff),
             self.framebuffer.get_background(),
         );
+        self.y -= diff;
     }
+
+    /*
+    fn scroll(&mut self) {
+        self.clear();
+        self.y = 0;
+    }
+    */
 }
 
-impl<'a, T: Pixel> core::fmt::Write for Fbterm<'a, T> {
+impl<'a, P: Pixel, F: Font> core::fmt::Write for Fbterm<'a, P, F> {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
         self.print(s);
         Ok(())
@@ -157,5 +172,5 @@ impl<'a, T: Pixel> core::fmt::Write for Fbterm<'a, T> {
 }
 
 // FIXME: Really safe?
-unsafe impl<'a, T: Pixel> Send for Fbterm<'a, T> {}
-unsafe impl<'a, T: Pixel> Sync for Fbterm<'a, T> {}
+unsafe impl<'a, P: Pixel, F: Font> Send for Fbterm<'a, P, F> {}
+unsafe impl<'a, P: Pixel, F: Font> Sync for Fbterm<'a, P, F> {}

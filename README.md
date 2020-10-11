@@ -8,46 +8,22 @@ Also contains an abstraction of the framebuffer, which can draw images by pixel.
 
 Build for no_std environment,such as operating system(without vga text mode) and embedded display.
 
-## example
+## Font
 
-SDL:
+Builtin Font from seabios vgabios, same as most VGA-compatible graphics cards.
 
-Input characters and show them in SDL window.
+![vga font](doc/vga.png)
 
-```txt
-Fbterm test on SDL2
+Support Truetype font thanks to `fontdue` crate, require `alloc`.
 
-USAGE:
-    fbterm_sdl [OPTIONS]
-
-FLAGS:
-        --help       Prints help information
-    -V, --version    Prints version information
-
-OPTIONS:
-    -f, --font <font>        height of font [possible values: 8, 14, 16]
-    -h, --height <height>    height of screen
-    -w, --width <width>      width of screen
-```
-
-![sdl2](./doc/sdl2.png)
-
-[My OS](https://github.com/12101111/os)
-
-After exiting UEFI boot service, program can't use Simple Text Output Protocal, but can use existing UEFI framebuffer.My OS use this crate to print texts.
-
-![uefi](./doc/uefi.jpg)
-
-## Font and Code
-
-Font from seabios vgabios, same as most VGA-compatible graphics cards
-
-Code page: 437 ,also known as CP437, OEM-US, OEM 437, PC-8, or DOS Latin US
+![truetype](doc/ttf.png)
 
 ## Todo
 
-    Cursor
-    board support
-    Buffer line
-    Custom font
-    Unicode map
+- Documents
+- Backspace
+- Double Buffer
+- String Buffer
+- PSF font
+- Cursor
+- ANSI

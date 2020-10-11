@@ -4,6 +4,8 @@ use sdl2;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::{Color, PixelFormatEnum};
+use std::io::Read;
+
 fn main() {
     let matches = App::new("Fbterm test on SDL2")
         .arg(
@@ -25,22 +27,47 @@ fn main() {
                 .short("f")
                 .long("font")
                 .takes_value(true)
-                .help("height of font")
-                .possible_values(&["8", "14", "16"]),
+                .help("path to font file"),
+        )
+        .arg(
+            Arg::with_name("size")
+                .short("s")
+                .long("size")
+                .takes_value(true)
+                .help("height of font"),
         )
         .get_matches();
-    let font = if let Some(f) = matches.value_of("font") {
-        match f {
-            "8" => Fonts::VGA8x8,
-            "14" => Fonts::VGA8x14,
-            "16" => Fonts::VGA8x16,
-            _ => Fonts::VGA8x14,
-        }
-    } else {
-        Fonts::VGA8x14
-    };
     let width = value_t!(matches, "width", usize).unwrap_or(640);
     let height = value_t!(matches, "height", usize).unwrap_or(480);
+    let size = value_t!(matches, "size", f32).unwrap_or(14.0);
+    let font = value_t!(matches, "font", String);
+    match font {
+        Ok(path) => {
+            let mut file = std::fs::File::open(&path).expect("File can't open");
+            let mut buf = Vec::new();
+            file.read_to_end(&mut buf).expect("Can't read file");
+            println!("Load font file: {}", path);
+            let font = TrueTypeFont::new(&buf, size);
+            println!("load font done");
+            run(width, height, font)
+        }
+        Err(_) => {
+            let size = if size <= 12.0 {
+                println!("Use VGA font 8x8");
+                VGAFontConfig::VGA8x8
+            } else if size <= 15.0 {
+                println!("Use VGA font 8x14");
+                VGAFontConfig::VGA8x14
+            } else {
+                println!("Use VGA font 8x16");
+                VGAFontConfig::VGA8x16
+            };
+            run(width, height, VGAFont::new(size));
+        }
+    };
+}
+
+fn run<F: Font>(width: usize, height: usize, font: F) {
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
     let mut event_pump = sdl_context.event_pump().unwrap();
@@ -64,7 +91,7 @@ fn main() {
     let foreground = RGBA8888::new(0xA8, 0xA8, 0xA8, 255);
     let fb = unsafe {
         Framebuffer::new(
-            (&mut frame_buffer).as_mut_ptr(),
+            std::ptr::NonNull::new((&mut frame_buffer).as_mut_ptr()).expect("fb is null"),
             width,
             height,
             width,
@@ -72,20 +99,20 @@ fn main() {
             foreground,
         )
     };
-    let mut fbterm = Fbterm::new(fb, font);
-    fbterm.clear();
+    let mut term = Fbterm::new(fb, font);
+    term.clear();
     let mut texture = texture_creator
         .create_texture_streaming(PixelFormatEnum::RGBA8888, width as u32, height as u32)
         .unwrap();
-    fbterm.print("Show all characters:\n");
-    for i in 0..255 {
-        fbterm.putc(i);
+    term.print("ASCII:");
+    for c in ' '..='~' {
+        term.putc(c)
     }
-    fbterm.print(
+    term.print(
         r"
-Test finish.
 Any characters you type will be displayed on the screen.
-Turn of IME before input
+Turn of IME before input on Windows.
+本程序支持中文显示
 ",
     );
     texture.update(None, &frame_buffer, 4 * width).unwrap();
@@ -101,7 +128,7 @@ Turn of IME before input
                     ..
                 } => break,
                 Event::TextInput { text, .. } => {
-                    fbterm.putc(text.as_bytes()[0]);
+                    term.print(&text);
                     texture.update(None, &frame_buffer, 4 * width).unwrap();
                     canvas.clear();
                     canvas.copy(&texture, None, None).unwrap();
@@ -111,22 +138,14 @@ Turn of IME before input
                     keycode: Some(key), ..
                 } => {
                     match key {
-                        Keycode::Left => fbterm.set_font_size(Fonts::VGA8x8),
-                        Keycode::Down => fbterm.set_font_size(Fonts::VGA8x14),
-                        Keycode::Right => fbterm.set_font_size(Fonts::VGA8x16),
-                        Keycode::Backspace => fbterm.putc(0x08),
-                        Keycode::KpEnter | Keycode::Return => fbterm.putc(b'\n'),
+                        Keycode::Backspace => term.putc('\u{08}'),
+                        Keycode::KpEnter | Keycode::Return => term.putc('\n'),
                         _ => {}
                     }
-                    match key {
-                        Keycode::Left | Keycode::Down | Keycode::Right | Keycode::Backspace => {
-                            texture.update(None, &frame_buffer, 4 * width).unwrap();
-                            canvas.clear();
-                            canvas.copy(&texture, None, None).unwrap();
-                            canvas.present();
-                        }
-                        _ => {}
-                    }
+                    texture.update(None, &frame_buffer, 4 * width).unwrap();
+                    canvas.clear();
+                    canvas.copy(&texture, None, None).unwrap();
+                    canvas.present();
                 }
                 _ => {
                     canvas.clear();

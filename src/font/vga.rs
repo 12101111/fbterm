@@ -1,50 +1,69 @@
-pub struct Font<'a> {
-    buffer: &'a [u8],
-    height: usize,
-    size: Fonts,
+use super::{Font, Glyph, Point};
+
+pub struct VGAFont {
+    pub(crate) buffer: &'static [u8],
+    pub(crate) height: usize,
 }
 
-impl<'a> Font<'a> {
-    pub fn new(font: Fonts) -> Font<'a> {
-        match font {
-            Fonts::VGA8x8 => Font {
-                buffer: &VGAFONT8,
-                height: 8,
-                size: font,
-            },
-            Fonts::VGA8x14 => Font {
-                buffer: &VGAFONT14,
-                height: 14,
-                size: font,
-            },
-            Fonts::VGA8x16 => Font {
-                buffer: &VGAFONT16,
-                height: 16,
-                size: font,
-            },
-        }
-    }
-    pub fn char(&self, c: u8) -> &'a [u8] {
-        &self.buffer[((c as usize) * self.height())..((c as usize + 1) * self.height())]
-    }
-    // TODO: support other width
-    pub fn width(&self) -> usize {
-        8
-    }
-    pub fn height(&self) -> usize {
-        self.height
-    }
-    pub fn get_font_size(&self) -> Fonts {
-        self.size
-    }
-}
-
-#[derive(Clone, Copy)]
-pub enum Fonts {
+pub enum VGAFontConfig {
     VGA8x8,
     VGA8x14,
     VGA8x16,
 }
+
+impl VGAFont {
+    pub fn new(font: VGAFontConfig) -> VGAFont {
+        match font {
+            VGAFontConfig::VGA8x8 => VGAFont {
+                buffer: &VGAFONT8,
+                height: 8,
+            },
+            VGAFontConfig::VGA8x14 => VGAFont {
+                buffer: &VGAFONT14,
+                height: 14,
+            },
+            VGAFontConfig::VGA8x16 => VGAFont {
+                buffer: &VGAFONT16,
+                height: 16,
+            },
+        }
+    }
+    #[inline]
+    fn width(&self) -> usize {
+        8
+    }
+}
+
+impl Font for VGAFont {
+    #[inline]
+    fn height(&self) -> usize {
+        self.height
+    }
+
+    #[inline]
+    fn get_glyph(&mut self, c: char) -> Option<Glyph> {
+        if c as usize > 256 {
+            return None;
+        }
+        let data =
+            self.buffer[((c as usize) * self.height())..((c as usize + 1) * self.height())].into();
+        Some(Glyph {
+            data,
+            width: self.width(),
+            advance: self.width(),
+            height: self.height(),
+            x: 0,
+            y: 0,
+        })
+    }
+    #[inline]
+    fn get_pixel(&self, glyph: &Glyph, x: usize, y: usize) -> Point {
+        assert!(y < self.height());
+        assert!(x < self.width());
+        Point::Bit(((glyph.data[y] >> (7 - x)) & 0x1) == 0x1)
+    }
+}
+
 /*
  * These fonts come from ftp://ftp.simtel.net/pub/simtelnet/msdos/screen/fntcol16.zip
  * The package is (c) by Joseph Gil

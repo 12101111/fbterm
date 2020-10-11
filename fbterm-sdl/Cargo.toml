@@ -1,6 +1,6 @@
 [package]
 name = "fbterm_sdl"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["韩朴宇 <w12101111@gmail.com>"]
 license = "MIT"
 edition = "2018"
@@ -11,5 +11,5 @@ path= "main.rs"
 
 [dependencies]
 sdl2 = "0.34"
-fbterm = { path = ".."}
+fbterm = { path = "..", features = ['alloc']}
 clap = "2"
