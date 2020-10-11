@@ -60,6 +60,31 @@ impl Font for TrueTypeFont {
     }
 
     #[inline]
+    fn metrics(&self, c: char) -> Option<Glyph> {
+        let cache = self.cache.peek(&c);
+        match cache {
+            Some(glyph) => Some(Glyph {
+                data: Cow::none(),
+                ..*glyph
+            }),
+            None => {
+                let metrics = self.inner.metrics(c, self.size);
+                assert!(metrics.xmin >= 0);
+                assert!(metrics.xmin as usize + metrics.width <= metrics.advance_width as usize);
+                let glyph = Glyph {
+                    data: Cow::none(),
+                    width: metrics.width,
+                    advance: metrics.advance_width as usize,
+                    height: metrics.height,
+                    x: metrics.xmin as usize,
+                    y: self.line_size as isize - metrics.ymin as isize - metrics.height as isize,
+                };
+                Some(glyph)
+            }
+        }
+    }
+
+    #[inline]
     fn get_pixel(&self, glyph: &Glyph, x: usize, y: usize) -> Point {
         Point::Coverage(glyph.data[y * glyph.width + x])
     }

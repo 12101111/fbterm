@@ -1,4 +1,4 @@
-use super::{Font, Glyph, Point};
+use super::{Font, Glyph, Point, Cow};
 
 pub struct VGAFont {
     pub(crate) buffer: &'static [u8],
@@ -56,6 +56,22 @@ impl Font for VGAFont {
             y: 0,
         })
     }
+
+    #[inline]
+    fn metrics(&self, c: char) -> Option<Glyph> {
+        if c as usize > 256 {
+            return None;
+        }
+        Some(Glyph {
+            data: Cow::none(),
+            width: self.width(),
+            advance: self.width(),
+            height: self.height(),
+            x: 0,
+            y: 0,
+        })
+    }
+
     #[inline]
     fn get_pixel(&self, glyph: &Glyph, x: usize, y: usize) -> Point {
         assert!(y < self.height());

@@ -115,6 +115,7 @@ Turn of IME before input on Windows.
 本程序支持中文显示
 ",
     );
+    println!("{:?}", term.lines());
     texture.update(None, &frame_buffer, 4 * width).unwrap();
     canvas.clear();
     canvas.copy(&texture, None, None).unwrap();
@@ -133,6 +134,7 @@ Turn of IME before input on Windows.
                     canvas.clear();
                     canvas.copy(&texture, None, None).unwrap();
                     canvas.present();
+                    println!("{:?}", term.lines());
                 }
                 Event::KeyDown {
                     keycode: Some(key), ..
@@ -146,6 +148,7 @@ Turn of IME before input on Windows.
                     canvas.clear();
                     canvas.copy(&texture, None, None).unwrap();
                     canvas.present();
+                    println!("{:?}", term.lines());
                 }
                 _ => {
                     canvas.clear();

@@ -15,6 +15,7 @@ pub enum Point {
 pub trait Font {
     fn height(&self) -> usize;
     fn get_glyph(&mut self, c: char) -> Option<Glyph>;
+    fn metrics(&self, c: char) -> Option<Glyph>;
     fn get_pixel(&self, glyph: &Glyph, x: usize, y: usize) -> Point;
 }
 
@@ -34,6 +35,13 @@ pub enum Cow {
 
     #[cfg(feature = "alloc")]
     Arc(Arc<[u8]>),
+}
+
+impl Cow {
+    #[inline]
+    fn none() -> Cow {
+        Cow::Borrowed(&[])
+    }
 }
 
 impl From<&'static [u8]> for Cow {

@@ -8,18 +8,17 @@ mod font;
 mod num;
 mod pixel;
 
+#[cfg(feature = "alloc")]
+use alloc::{string::String, vec::Vec};
 pub use fb::Framebuffer;
 pub use fb::Rect;
-use font::Glyph;
-pub use font::{
-    vga::{VGAFont, VGAFontConfig},
-    Font, Point,
-};
-use num::Saturating;
-
 #[cfg(feature = "alloc")]
 pub use font::truetype::TrueTypeFont;
-
+pub use font::{
+    vga::{VGAFont, VGAFontConfig},
+    Font, Glyph, Point,
+};
+use num::Saturating;
 pub use pixel::*;
 
 pub struct Fbterm<'a, P: Pixel, F: Font> {
@@ -27,17 +26,24 @@ pub struct Fbterm<'a, P: Pixel, F: Font> {
     font: F,
     x: Saturating,
     y: Saturating,
+    #[cfg(feature = "alloc")]
+    lines: Vec<String>,
 }
 
 impl<'a, P: Pixel, F: Font> Fbterm<'a, P, F> {
     pub fn new(framebuffer: Framebuffer<'a, P>, font: F) -> Fbterm<'a, P, F> {
         let width = framebuffer.width();
         let height = framebuffer.height();
+        let lines_len = height / font.height();
+        let mut lines = Vec::with_capacity(lines_len);
+        lines.push(String::new());
         Fbterm {
             framebuffer,
             font,
             x: Saturating::new(width - 1),
             y: Saturating::new(height - 1),
+            #[cfg(feature = "alloc")]
+            lines,
         }
     }
 
@@ -45,6 +51,11 @@ impl<'a, P: Pixel, F: Font> Fbterm<'a, P, F> {
         self.x.set(0);
         self.y.set(0);
         self.framebuffer.clear();
+        #[cfg(feature = "alloc")]
+        {
+            self.lines.clear();
+            self.lines.push(String::new());
+        }
     }
 
     pub fn putc(&mut self, c: char) {
@@ -56,27 +67,55 @@ impl<'a, P: Pixel, F: Font> Fbterm<'a, P, F> {
                 if self.y.add_check(self.font.height()).1 {
                     self.scroll();
                 }
+                #[cfg(feature = "alloc")]
+                self.lines.push(String::new());
             }
             '\r' => {
                 self.x.set(0);
+                // FIXME: should \r drop all char ?
+                #[cfg(feature = "alloc")]
+                self.lines.last_mut().unwrap().clear();
             }
             '\t' => {
                 self.print("    ");
             }
+            #[cfg(feature = "alloc")]
+            '\u{08}' => {
+                let last_line = self.lines.last_mut().unwrap();
+                let last_char = last_line.pop();
+                match last_char {
+                    Some(c) => {
+                        let metrics = self.font.metrics(c).unwrap();
+                        self.x -= metrics.advance;
+                        let basex = *self.x + metrics.x;
+                        let basey = (*self.y as isize + metrics.y) as usize;
+                        let clean = Rect::new(basex, basey, metrics.width, metrics.height);
+                        self.framebuffer
+                            .draw_rect(clean, self.framebuffer.get_background())
+                    }
+                    None => {
+                        // FIXME: deal with line change
+                    }
+                }
+            }
             _ => {
-                let glyph = self
-                    .font
-                    .get_glyph(c)
-                    .unwrap_or(self.font.get_glyph(' ').unwrap());
+                let (c, glyph) = match self.font.get_glyph(c) {
+                    Some(g) => (c, g),
+                    None => (' ', self.font.get_glyph(' ').unwrap()),
+                };
                 let (mut next_x, overflow) = self.x.add_check(glyph.advance);
                 if overflow {
                     self.x.set(0);
                     next_x = glyph.advance;
                     self.y += self.font.height();
+                    if self.y.add_check(self.font.height()).1 {
+                        self.scroll();
+                    }
+                    #[cfg(feature = "alloc")]
+                    self.lines.push(String::new());
                 }
-                if self.y.add_check(self.font.height()).1 {
-                    self.scroll();
-                }
+                #[cfg(feature = "alloc")]
+                self.lines.last_mut().unwrap().push(c);
                 self.draw_glyph(glyph);
                 self.x.set(next_x);
             }
@@ -113,6 +152,10 @@ impl<'a, P: Pixel, F: Font> Fbterm<'a, P, F> {
         self.framebuffer.height()
     }
 
+    pub fn lines(&self) -> &[String] {
+        &self.lines
+    }
+
     fn draw_glyph(&mut self, glyph: Glyph) {
         let basex = *self.x + glyph.x;
         let basey = *self.y as isize + glyph.y;
@@ -121,12 +164,14 @@ impl<'a, P: Pixel, F: Font> Fbterm<'a, P, F> {
         assert!(
             basex + glyph.width <= self.width(),
             "x is overflow: {} + {}",
-            basex, glyph.width
+            basex,
+            glyph.width
         );
         assert!(
             basey + glyph.height <= self.height(),
             "y is overflow: {} + {}",
-            basey, glyph.height
+            basey,
+            glyph.height
         );
         for y in 0..glyph.height {
             for x in 0..glyph.width {
@@ -154,6 +199,7 @@ impl<'a, P: Pixel, F: Font> Fbterm<'a, P, F> {
             self.framebuffer.get_background(),
         );
         self.y -= diff;
+        self.lines.pop();
     }
 
     /*
