@@ -34,9 +34,13 @@ impl<'a, P: Pixel, F: Font> Fbterm<'a, P, F> {
     pub fn new(framebuffer: Framebuffer<'a, P>, font: F) -> Fbterm<'a, P, F> {
         let width = framebuffer.width();
         let height = framebuffer.height();
-        let lines_len = height / font.height();
-        let mut lines = Vec::with_capacity(lines_len);
-        lines.push(String::new());
+        #[cfg(feature = "alloc")]
+        let lines = {
+            let lines_len = height / font.height();
+            let mut lines = Vec::with_capacity(lines_len);
+            lines.push(String::new());
+            lines
+        };
         Fbterm {
             framebuffer,
             font,
@@ -137,9 +141,18 @@ impl<'a, P: Pixel, F: Font> Fbterm<'a, P, F> {
     }
 
     pub fn change_font<T: Font>(mut self, font: T) -> Fbterm<'a, P, T> {
-        // TODO: redraw after reset
+        #[cfg(feature = "alloc")]
+        let lines = core::mem::replace(&mut self.lines, Vec::new());
         self.clear();
-        Fbterm::new(self.framebuffer, font)
+        let mut term = Fbterm::new(self.framebuffer, font);
+        #[cfg(feature = "alloc")]
+        {
+            for line in lines {
+                term.print(&line);
+                term.putc('\n');
+            }
+        }
+        term
     }
 
     #[inline]
@@ -152,6 +165,8 @@ impl<'a, P: Pixel, F: Font> Fbterm<'a, P, F> {
         self.framebuffer.height()
     }
 
+    #[cfg(feature = "alloc")]
+    #[inline]
     pub fn lines(&self) -> &[String] {
         &self.lines
     }
@@ -199,6 +214,8 @@ impl<'a, P: Pixel, F: Font> Fbterm<'a, P, F> {
             self.framebuffer.get_background(),
         );
         self.y -= diff;
+
+        #[cfg(feature = "alloc")]
         self.lines.pop();
     }
 

@@ -44,7 +44,7 @@ impl<'a, T: Pixel> Framebuffer<'a, T> {
             return;
         }
         let real_buffer = self.buffer.unwrap();
-        let rect = rect.unwrap_or(Rect::new(0, 0, self.width, self.height));
+        let rect = rect.unwrap_or_else(|| Rect::new(0, 0, self.width, self.height));
         assert!(
             rect.right() < self.width && rect.bottom() < self.height,
             "Rect is out of bounds: {:?}",

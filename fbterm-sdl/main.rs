@@ -112,8 +112,7 @@ fn run<F: Font>(width: usize, height: usize, font: F) {
         r"
 Any characters you type will be displayed on the screen.
 Turn of IME before input on Windows.
-本程序支持中文显示
-",
+本程序支持中文显示",
     );
     println!("{:?}", term.lines());
     texture.update(None, &frame_buffer, 4 * width).unwrap();
