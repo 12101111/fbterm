@@ -208,7 +208,7 @@ impl<'a, T: Pixel> Framebuffer<'a, T> {
     }
 
     #[inline]
-    pub fn buffer_size(&mut self) -> usize {
+    pub fn buffer_size(&self) -> usize {
         self.height * self.stride * T::size()
     }
 
