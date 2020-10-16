@@ -9,7 +9,7 @@ mod num;
 mod pixel;
 
 #[cfg(feature = "alloc")]
-use alloc::{string::String, vec::Vec};
+use alloc::{collections::VecDeque, string::String};
 pub use fb::Framebuffer;
 pub use fb::Rect;
 #[cfg(feature = "alloc")]
@@ -26,8 +26,9 @@ pub struct Fbterm<'a, P: Pixel, F: Font> {
     font: F,
     x: Saturating,
     y: Saturating,
+    dirty: Option<Rect>,
     #[cfg(feature = "alloc")]
-    lines: Vec<String>,
+    lines: VecDeque<String>,
 }
 
 impl<'a, P: Pixel, F: Font> Fbterm<'a, P, F> {
@@ -37,8 +38,8 @@ impl<'a, P: Pixel, F: Font> Fbterm<'a, P, F> {
         #[cfg(feature = "alloc")]
         let lines = {
             let lines_len = height / font.height();
-            let mut lines = Vec::with_capacity(lines_len);
-            lines.push(String::new());
+            let mut lines = VecDeque::with_capacity(lines_len);
+            lines.push_back(String::new());
             lines
         };
         Fbterm {
@@ -46,6 +47,7 @@ impl<'a, P: Pixel, F: Font> Fbterm<'a, P, F> {
             font,
             x: Saturating::new(width - 1),
             y: Saturating::new(height - 1),
+            dirty: None,
             #[cfg(feature = "alloc")]
             lines,
         }
@@ -55,11 +57,21 @@ impl<'a, P: Pixel, F: Font> Fbterm<'a, P, F> {
         self.x.set(0);
         self.y.set(0);
         self.framebuffer.clear();
+        self.framebuffer.flush(None);
+        self.dirty = None;
         #[cfg(feature = "alloc")]
         {
             self.lines.clear();
-            self.lines.push(String::new());
+            self.lines.push_back(String::new());
         }
+    }
+
+    pub fn flush(&mut self) {
+        if self.dirty.is_none() {
+            return;
+        }
+        self.framebuffer.flush(self.dirty);
+        self.dirty = None;
     }
 
     pub fn putc(&mut self, c: char) {
@@ -72,20 +84,20 @@ impl<'a, P: Pixel, F: Font> Fbterm<'a, P, F> {
                     self.scroll();
                 }
                 #[cfg(feature = "alloc")]
-                self.lines.push(String::new());
+                self.lines.push_back(String::new());
             }
             '\r' => {
                 self.x.set(0);
                 // FIXME: should \r drop all char ?
                 #[cfg(feature = "alloc")]
-                self.lines.last_mut().unwrap().clear();
+                self.lines.back_mut().unwrap().clear();
             }
             '\t' => {
                 self.print("    ");
             }
             #[cfg(feature = "alloc")]
             '\u{08}' => {
-                let last_line = self.lines.last_mut().unwrap();
+                let last_line = self.lines.back_mut().unwrap();
                 let last_char = last_line.pop();
                 match last_char {
                     Some(c) => {
@@ -95,7 +107,8 @@ impl<'a, P: Pixel, F: Font> Fbterm<'a, P, F> {
                         let basey = (*self.y as isize + metrics.y) as usize;
                         let clean = Rect::new(basex, basey, metrics.width, metrics.height);
                         self.framebuffer
-                            .draw_rect(clean, self.framebuffer.get_background())
+                            .draw_rect(clean, self.framebuffer.get_background());
+                        self.add_dirty(clean);
                     }
                     None => {
                         // FIXME: deal with line change
@@ -116,10 +129,10 @@ impl<'a, P: Pixel, F: Font> Fbterm<'a, P, F> {
                         self.scroll();
                     }
                     #[cfg(feature = "alloc")]
-                    self.lines.push(String::new());
+                    self.lines.push_back(String::new());
                 }
                 #[cfg(feature = "alloc")]
-                self.lines.last_mut().unwrap().push(c);
+                self.lines.back_mut().unwrap().push(c);
                 self.draw_glyph(glyph);
                 self.x.set(next_x);
             }
@@ -130,6 +143,7 @@ impl<'a, P: Pixel, F: Font> Fbterm<'a, P, F> {
         for c in s.chars() {
             self.putc(c)
         }
+        self.flush()
     }
 
     pub fn get_font(&self) -> &F {
@@ -142,7 +156,7 @@ impl<'a, P: Pixel, F: Font> Fbterm<'a, P, F> {
 
     pub fn change_font<T: Font>(mut self, font: T) -> Fbterm<'a, P, T> {
         #[cfg(feature = "alloc")]
-        let lines = core::mem::replace(&mut self.lines, Vec::new());
+        let lines = core::mem::replace(&mut self.lines, VecDeque::new());
         self.clear();
         let mut term = Fbterm::new(self.framebuffer, font);
         #[cfg(feature = "alloc")]
@@ -153,6 +167,21 @@ impl<'a, P: Pixel, F: Font> Fbterm<'a, P, F> {
             }
         }
         term
+    }
+
+    fn add_dirty(&mut self, new: Rect) {
+        if self.dirty.is_none() {
+            self.dirty = Some(new);
+            return;
+        }
+        let old = self.dirty.unwrap();
+        let x = old.left().min(new.left());
+        let y = old.top().min(new.top());
+        let right = old.right().max(new.right());
+        let bottom = old.bottom().max(new.bottom());
+        let width = right - x;
+        let height = bottom - y;
+        self.dirty = Some(Rect::new(x, y, width, height))
     }
 
     #[inline]
@@ -167,7 +196,7 @@ impl<'a, P: Pixel, F: Font> Fbterm<'a, P, F> {
 
     #[cfg(feature = "alloc")]
     #[inline]
-    pub fn lines(&self) -> &[String] {
+    pub fn lines(&self) -> &VecDeque<String> {
         &self.lines
     }
 
@@ -200,6 +229,7 @@ impl<'a, P: Pixel, F: Font> Fbterm<'a, P, F> {
                 };
             }
         }
+        self.add_dirty(Rect::new(basex, basey, glyph.width, glyph.height));
     }
 
     /* FIXME: This is too slow */
@@ -214,9 +244,9 @@ impl<'a, P: Pixel, F: Font> Fbterm<'a, P, F> {
             self.framebuffer.get_background(),
         );
         self.y -= diff;
-
+        self.add_dirty(Rect::new(0, 0, self.width(), self.height()));
         #[cfg(feature = "alloc")]
-        self.lines.pop();
+        self.lines.pop_front();
     }
 
     /*

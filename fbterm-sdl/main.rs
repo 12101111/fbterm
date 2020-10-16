@@ -87,6 +87,7 @@ fn run<F: Font>(width: usize, height: usize, font: F) {
     canvas.present();
     let texture_creator = canvas.texture_creator();
     let mut frame_buffer = vec![0u8; 4 * width * height];
+    let mut double_buffer = vec![0u8; 4 * width * height];
     let background = RGBA8888::new(0, 0, 0xA8, 0);
     let foreground = RGBA8888::new(0xA8, 0xA8, 0xA8, 255);
     let fb = unsafe {
@@ -100,13 +101,19 @@ fn run<F: Font>(width: usize, height: usize, font: F) {
         )
     };
     let mut term = Fbterm::new(fb, font);
+    unsafe {
+        term.framebuffer.set_double_buffer(
+            std::ptr::NonNull::new((&mut double_buffer).as_mut_ptr()).expect("fb is null"),
+        )
+    };
     term.clear();
     let mut texture = texture_creator
         .create_texture_streaming(PixelFormatEnum::RGBA8888, width as u32, height as u32)
         .unwrap();
     term.print("ASCII:");
     for c in ' '..='~' {
-        term.putc(c)
+        term.putc(c);
+        term.flush();
     }
     term.print(
         r"
@@ -143,6 +150,7 @@ Turn of IME before input on Windows.
                         Keycode::KpEnter | Keycode::Return => term.putc('\n'),
                         _ => {}
                     }
+                    term.flush();
                     texture.update(None, &frame_buffer, 4 * width).unwrap();
                     canvas.clear();
                     canvas.copy(&texture, None, None).unwrap();

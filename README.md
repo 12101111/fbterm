@@ -21,7 +21,6 @@ Support Truetype font thanks to `fontdue` crate, require `alloc`.
 ## Todo
 
 - Documents
-- Double Buffer
 - PSF font
 - Cursor
 - ANSI

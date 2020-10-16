@@ -37,6 +37,7 @@ impl<'a, T: Pixel> Framebuffer<'a, T> {
         let real_buffer = self.base;
         self.base = buffer;
         self.buffer = Some(real_buffer);
+        self.clear()
     }
 
     pub fn flush(&mut self, rect: Option<Rect>) {
@@ -46,7 +47,7 @@ impl<'a, T: Pixel> Framebuffer<'a, T> {
         let real_buffer = self.buffer.unwrap();
         let rect = rect.unwrap_or_else(|| Rect::new(0, 0, self.width, self.height));
         assert!(
-            rect.right() < self.width && rect.bottom() < self.height,
+            rect.right() <= self.width && rect.bottom() <= self.height,
             "Rect is out of bounds: {:?}",
             rect
         );
@@ -103,12 +104,12 @@ impl<'a, T: Pixel> Framebuffer<'a, T> {
             src, dst
         );
         assert!(
-            src.right() < self.width && src.bottom() < self.height,
+            src.right() <= self.width && src.bottom() <= self.height,
             "source Rect is out of bounds: {:?}",
             src
         );
         assert!(
-            dst.right() < self.width && dst.bottom() < self.height,
+            dst.right() <= self.width && dst.bottom() <= self.height,
             "target Rect is out of bounds: {:?}",
             dst
         );
@@ -129,7 +130,7 @@ impl<'a, T: Pixel> Framebuffer<'a, T> {
 
     pub fn draw_rect(&mut self, dst: Rect, pixel: T) {
         assert!(
-            dst.bottom() < self.height && dst.right() < self.width,
+            dst.bottom() <= self.height && dst.right() <= self.width,
             "target Rect is out of bounds: {:?}",
             dst
         );
@@ -239,7 +240,7 @@ impl Rect {
 
     #[inline]
     pub fn right(&self) -> usize {
-        self.x + self.width - 1
+        self.x + self.width
     }
 
     #[inline]
@@ -254,6 +255,6 @@ impl Rect {
 
     #[inline]
     pub fn bottom(&self) -> usize {
-        self.y + self.height - 1
+        self.y + self.height
     }
 }
